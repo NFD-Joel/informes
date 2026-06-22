@@ -47,7 +47,7 @@ export async function setMark(slug: string, written: boolean): Promise<boolean> 
     if (res.status === 401) {
       // Stale PIN — clear it, re-prompt, and try once more.
       clearPin();
-      pin = await openPinModal({ message: 'Dein PIN gilt nicht mehr.' });
+      pin = await openPinModal({ message: 'Your PIN is no longer valid.' });
       if (!pin) return false;
       res = await post(pin);
     }

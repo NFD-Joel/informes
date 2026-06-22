@@ -18,7 +18,7 @@ const sentences = splitSentences(entry.body);
 const fullText = sentences.join(' ');
 
 const dateLabel = entry.data.date
-  ? entry.data.date.toLocaleDateString('es', {
+  ? entry.data.date.toLocaleDateString('en', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -28,10 +28,10 @@ const dateLabel = entry.data.date
 
 <Layout title={`${title} · informes`}>
   <header class="topbar">
-    <a class="back" href="/">← Übersicht</a>
+    <a class="back" href="/">← Overview</a>
     <label class="written">
       <input class="mark" type="checkbox" data-slug={entry.slug} />
-      <span>geschrieben</span>
+      <span>written</span>
     </label>
   </header>
 
@@ -41,15 +41,15 @@ const dateLabel = entry.data.date
       {dateLabel && <p class="date">{dateLabel}</p>}
 
       <div class="toolbar">
-        <span class="progress" id="progress">0 / {sentences.length} Sätze</span>
+        <span class="progress" id="progress">0 / {sentences.length} sentences</span>
         <div class="tools">
-          <button class="tool" id="copy" data-text={fullText}>Kopieren</button>
-          <button class="tool" id="reset">Zurücksetzen</button>
+          <button class="tool" id="copy" data-text={fullText}>Copy</button>
+          <button class="tool" id="reset">Reset</button>
         </div>
       </div>
-      <p class="hint">Tippe einen Satz an, wenn du ihn abgeschrieben hast.</p>
+      <p class="hint">Tap a sentence once you've written it down.</p>
 
-      <div class="prose" id="prose">
+      <div class="prose" id="prose" lang="es">
         {sentences.map((s, i) => (
           <p class="sent" data-i={i}>{s}</p>
         ))}
@@ -86,6 +86,17 @@ const dateLabel = entry.data.date
   const total = sents.length;
   const storeKey = `informe-sent-${slug}`;
 
+  // When every sentence is checked off, the whole informe counts as written —
+  // keep the synced "written" mark in step (and clear it if one is undone).
+  async function syncWrittenFromSentences() {
+    if (!box || !slug) return;
+    const complete = total > 0 && done.size === total;
+    if (complete === box.checked) return; // already in sync
+    box.checked = complete;
+    const ok = await setMark(slug, complete);
+    if (!ok) box.checked = !complete; // revert on failure
+  }
+
   function load(): Set<number> {
     try {
       return new Set(JSON.parse(localStorage.getItem(storeKey) ?? '[]'));
@@ -121,6 +132,7 @@ const dateLabel = entry.data.date
       }
       save(done);
       updateProgress(done);
+      syncWrittenFromSentences();
     });
   }
 
@@ -140,7 +152,7 @@ const dateLabel = entry.data.date
       ta.remove();
     }
     const old = copyBtn.textContent;
-    copyBtn.textContent = 'Kopiert ✓';
+    copyBtn.textContent = 'Copied ✓';
     copyBtn.classList.add('ok');
     setTimeout(() => {
       copyBtn.textContent = old;
@@ -155,6 +167,7 @@ const dateLabel = entry.data.date
     for (const el of sents) el.classList.remove('done');
     save(done);
     updateProgress(done);
+    syncWrittenFromSentences();
   });
 </script>
 

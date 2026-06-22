@@ -112,7 +112,7 @@ function injectStyles(): void {
 interface PinModalOptions {
   /** Shown as the subtitle. */
   message?: string;
-  /** Allow dismissing without entering a PIN (Escape / backdrop / "Später"). */
+  /** Allow dismissing without entering a PIN (Escape / backdrop / "Later"). */
   dismissible?: boolean;
 }
 
@@ -121,22 +121,22 @@ interface PinModalOptions {
  * The returned PIN has already been checked against the Worker and stored.
  */
 export function openPinModal(opts: PinModalOptions = {}): Promise<string | null> {
-  const { message = 'Einmal pro Gerät — danach gemerkt.', dismissible = true } = opts;
+  const { message = 'Once per device — then remembered.', dismissible = true } = opts;
   injectStyles();
 
   return new Promise((resolve) => {
     const backdrop = document.createElement('div');
     backdrop.className = 'pin-backdrop';
     backdrop.innerHTML = `
-      <div class="pin-modal" role="dialog" aria-modal="true" aria-label="PIN eingeben">
-        <h2>🔒 PIN eingeben</h2>
+      <div class="pin-modal" role="dialog" aria-modal="true" aria-label="Enter PIN">
+        <h2>🔒 Enter PIN</h2>
         <p>${message}</p>
         <input class="pin-input" type="password" inputmode="numeric"
                autocomplete="off" aria-label="PIN" />
         <p class="pin-msg" aria-live="polite"></p>
         <div class="pin-actions">
-          ${dismissible ? '<button class="pin-btn ghost" data-act="cancel">Später</button>' : ''}
-          <button class="pin-btn primary" data-act="ok" disabled>Bestätigen</button>
+          ${dismissible ? '<button class="pin-btn ghost" data-act="cancel">Later</button>' : ''}
+          <button class="pin-btn primary" data-act="ok" disabled>Confirm</button>
         </div>
       </div>`;
 
@@ -160,16 +160,16 @@ export function openPinModal(opts: PinModalOptions = {}): Promise<string | null>
       const pin = input.value.trim();
       if (!pin) return;
       okBtn.disabled = true;
-      okBtn.textContent = 'Prüfen…';
+      okBtn.textContent = 'Checking…';
       msg.textContent = '';
       if (await verifyPin(pin)) {
         storePin(pin);
         close(pin);
       } else {
         okBtn.disabled = false;
-        okBtn.textContent = 'Bestätigen';
+        okBtn.textContent = 'Confirm';
         input.classList.add('error');
-        msg.textContent = 'Falscher PIN.';
+        msg.textContent = 'Wrong PIN.';
         input.select();
       }
     }
@@ -219,7 +219,7 @@ export async function promptPinOnLoad(): Promise<void> {
   if (stored) {
     if (!(await verifyPin(stored))) {
       clearPin();
-      await openPinModal({ message: 'Dein gespeicherter PIN gilt nicht mehr.' });
+      await openPinModal({ message: 'Your saved PIN is no longer valid.' });
     }
     return;
   }
