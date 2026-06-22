@@ -2,6 +2,7 @@
 //
 //   GET  /state  -> { slug: boolean }            (open, read-only)
 //   POST /state  -> { slug, written } body        (requires Bearer WRITE_TOKEN)
+//   POST /auth   -> { ok: true } / 401            (validate a PIN, no writes)
 //
 // State is a single JSON blob in Workers KV under the key "marks".
 
@@ -30,12 +31,25 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+// True when the request carries the correct Bearer token.
+function authorized(request: Request, env: Env): boolean {
+  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  return !!env.WRITE_TOKEN && token === env.WRITE_TOKEN;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors() });
+    }
+
+    // Validate a PIN without touching state.
+    if (url.pathname === '/auth' && request.method === 'POST') {
+      return authorized(request, env)
+        ? json({ ok: true })
+        : json({ ok: false }, 401);
     }
 
     if (url.pathname !== '/state') {
@@ -50,9 +64,7 @@ export default {
     }
 
     if (request.method === 'POST') {
-      const auth = request.headers.get('Authorization') ?? '';
-      const token = auth.replace(/^Bearer\s+/i, '');
-      if (!env.WRITE_TOKEN || token !== env.WRITE_TOKEN) {
+      if (!authorized(request, env)) {
         return json({ error: 'unauthorized' }, 401);
       }
 

@@ -46,6 +46,10 @@ const dateLabel = entry.data.date
 
 <script>
   import { getMarks, setMark } from '../../lib/marks';
+  import { promptPinOnLoad } from '../../lib/pin';
+
+  // Ask for the PIN up front so marking afterwards is frictionless.
+  promptPinOnLoad();
 
   const box = document.querySelector<HTMLInputElement>('.mark');
   const slug = box?.dataset.slug;

@@ -49,6 +49,10 @@ const informes = entries.map((entry) => ({
 
 <script>
   import { getMarks, setMark } from '../lib/marks';
+  import { promptPinOnLoad } from '../lib/pin';
+
+  // Ask for the PIN up front so marking afterwards is frictionless.
+  promptPinOnLoad();
 
   const cards = Array.from(document.querySelectorAll<HTMLElement>('.card'));
   const doneEl = document.getElementById('done');

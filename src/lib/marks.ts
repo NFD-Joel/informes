@@ -2,13 +2,11 @@
 //
 // State lives in a Cloudflare Worker backed by Workers KV. Reads are open so
 // every device shows the current state instantly; writes require a PIN (equal
-// to the Worker's WRITE_TOKEN secret) which the user enters once per browser
-// and which is then cached in localStorage — it is never committed to the repo.
+// to the Worker's WRITE_TOKEN secret), entered once per browser via the styled
+// modal in ./pin and then cached in localStorage — never committed to the repo.
 
-// Base URL of the deployed Worker (set after `wrangler deploy`).
-export const WORKER_URL = 'https://informe-marks.xaytag.workers.dev';
-
-const PIN_KEY = 'informe-pin';
+import { WORKER_URL } from './config';
+import { ensurePin, clearPin, openPinModal } from './pin';
 
 export type Marks = Record<string, boolean>;
 
@@ -23,42 +21,38 @@ export async function getMarks(): Promise<Marks> {
   }
 }
 
-function getPin(): string | null {
-  return localStorage.getItem(PIN_KEY);
-}
-
 /**
- * Persist a single mark. Prompts for the PIN if needed. Returns true on
- * success. On a rejected PIN the cached value is cleared so the next attempt
- * re-prompts.
+ * Persist a single mark. Prompts for the PIN via the modal if needed. Returns
+ * true on success. On a rejected PIN the cached value is cleared and the modal
+ * re-opens so the user can retry.
  */
 export async function setMark(slug: string, written: boolean): Promise<boolean> {
-  let pin = getPin();
-  if (!pin) {
-    pin = window.prompt('PIN zum Abhaken eingeben:');
-    if (!pin) return false;
-  }
+  let pin = await ensurePin();
+  if (!pin) return false;
 
-  try {
-    const res = await fetch(`${WORKER_URL}/state`, {
+  const post = (token: string) =>
+    fetch(`${WORKER_URL}/state`, {
       method: 'POST',
       mode: 'cors',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${pin}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ slug, written }),
     });
 
-    if (res.status === 401) {
-      localStorage.removeItem(PIN_KEY);
-      window.alert('Falscher PIN.');
-      return false;
-    }
-    if (!res.ok) return false;
+  try {
+    let res = await post(pin);
 
-    localStorage.setItem(PIN_KEY, pin);
-    return true;
+    if (res.status === 401) {
+      // Stale PIN — clear it, re-prompt, and try once more.
+      clearPin();
+      pin = await openPinModal({ message: 'Dein PIN gilt nicht mehr.' });
+      if (!pin) return false;
+      res = await post(pin);
+    }
+
+    return res.ok;
   } catch {
     return false;
   }
