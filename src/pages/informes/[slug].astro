@@ -2,6 +2,7 @@
 import { getCollection } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
 import { humanize } from '../../lib/title';
+import { splitSentences } from '../../lib/sentences';
 
 export async function getStaticPaths() {
   const entries = await getCollection('informes');
@@ -13,7 +14,8 @@ export async function getStaticPaths() {
 
 const { entry } = Astro.props;
 const title = entry.data.title ?? humanize(entry.slug);
-const { Content } = await entry.render();
+const sentences = splitSentences(entry.body);
+const fullText = sentences.join(' ');
 
 const dateLabel = entry.data.date
   ? entry.data.date.toLocaleDateString('es', {
@@ -37,8 +39,20 @@ const dateLabel = entry.data.date
     <article>
       <h1 class="title">{title}</h1>
       {dateLabel && <p class="date">{dateLabel}</p>}
-      <div class="prose">
-        <Content />
+
+      <div class="toolbar">
+        <span class="progress" id="progress">0 / {sentences.length} Sätze</span>
+        <div class="tools">
+          <button class="tool" id="copy" data-text={fullText}>Kopieren</button>
+          <button class="tool" id="reset">Zurücksetzen</button>
+        </div>
+      </div>
+      <p class="hint">Tippe einen Satz an, wenn du ihn abgeschrieben hast.</p>
+
+      <div class="prose" id="prose">
+        {sentences.map((s, i) => (
+          <p class="sent" data-i={i}>{s}</p>
+        ))}
       </div>
     </article>
   </main>
@@ -51,6 +65,7 @@ const dateLabel = entry.data.date
   // Ask for the PIN up front so marking afterwards is frictionless.
   promptPinOnLoad();
 
+  // --- Whole-informe "written" toggle (synced via worker) ---
   const box = document.querySelector<HTMLInputElement>('.mark');
   const slug = box?.dataset.slug;
 
@@ -58,13 +73,89 @@ const dateLabel = entry.data.date
     getMarks().then((marks) => {
       box.checked = marks[slug] === true;
     });
-
     box.addEventListener('change', async () => {
       const want = box.checked;
       const ok = await setMark(slug, want);
       if (!ok) box.checked = !want; // revert on failure
     });
   }
+
+  // --- Tap-to-mark sentences (per-device, localStorage) ---
+  const sents = Array.from(document.querySelectorAll<HTMLElement>('.sent'));
+  const progress = document.getElementById('progress');
+  const total = sents.length;
+  const storeKey = `informe-sent-${slug}`;
+
+  function load(): Set<number> {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(storeKey) ?? '[]'));
+    } catch {
+      return new Set();
+    }
+  }
+  function save(done: Set<number>) {
+    localStorage.setItem(storeKey, JSON.stringify([...done]));
+  }
+  function updateProgress(done: Set<number>) {
+    if (progress) progress.textContent = `${done.size} / ${total} Sätze`;
+  }
+
+  const done = load();
+  for (const el of sents) {
+    const i = Number(el.dataset.i);
+    if (done.has(i)) el.classList.add('done');
+  }
+  updateProgress(done);
+
+  for (const el of sents) {
+    el.addEventListener('click', () => {
+      // Don't toggle when the user is selecting text to copy.
+      if ((window.getSelection()?.toString() ?? '') !== '') return;
+      const i = Number(el.dataset.i);
+      if (done.has(i)) {
+        done.delete(i);
+        el.classList.remove('done');
+      } else {
+        done.add(i);
+        el.classList.add('done');
+      }
+      save(done);
+      updateProgress(done);
+    });
+  }
+
+  // --- Copy full text ---
+  const copyBtn = document.getElementById('copy') as HTMLButtonElement | null;
+  copyBtn?.addEventListener('click', async () => {
+    const text = copyBtn.dataset.text ?? '';
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for older browsers / insecure contexts.
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    const old = copyBtn.textContent;
+    copyBtn.textContent = 'Kopiert ✓';
+    copyBtn.classList.add('ok');
+    setTimeout(() => {
+      copyBtn.textContent = old;
+      copyBtn.classList.remove('ok');
+    }, 1500);
+  });
+
+  // --- Reset sentence marks ---
+  const resetBtn = document.getElementById('reset');
+  resetBtn?.addEventListener('click', () => {
+    done.clear();
+    for (const el of sents) el.classList.remove('done');
+    save(done);
+    updateProgress(done);
+  });
 </script>
 
 <style>
@@ -114,7 +205,7 @@ const dateLabel = entry.data.date
   }
 
   main {
-    max-width: 720px;
+    max-width: 760px;
     margin: 0 auto;
     padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2rem) 4rem;
   }
@@ -127,18 +218,92 @@ const dateLabel = entry.data.date
   }
 
   .date {
-    margin: 0 0 2rem;
+    margin: 0 0 1.5rem;
     color: var(--text-dim);
     font-size: 0.85rem;
   }
 
-  .prose {
-    font-size: 1.08rem;
-    line-height: 1.8;
-    color: var(--text);
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
   }
 
-  .prose :global(p) {
-    margin: 0 0 1.2rem;
+  .progress {
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+  }
+
+  .tools {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .tool {
+    font: inherit;
+    font-size: 0.82rem;
+    padding: 0.4rem 0.8rem;
+    color: var(--text);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  }
+
+  .tool:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+  }
+
+  .tool.ok {
+    color: var(--ok);
+    border-color: rgba(74, 222, 128, 0.5);
+  }
+
+  .hint {
+    margin: 0.8rem 0 1.4rem;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  /* Reading column: large, high-contrast, generous spacing, one sentence per
+     line so it's easy to read and to transcribe. */
+  .prose {
+    font-size: 1.2rem;
+    line-height: 1.65;
+  }
+
+  .sent {
+    margin: 0;
+    padding: 0.55rem 0.8rem;
+    border-left: 3px solid transparent;
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .sent:hover {
+    background: var(--bg-card);
+  }
+
+  .sent.done {
+    color: var(--ok);
+    background: rgba(74, 222, 128, 0.1);
+    border-left-color: var(--ok);
+  }
+
+  @media (max-width: 480px) {
+    .prose {
+      font-size: 1.12rem;
+    }
   }
 </style>
