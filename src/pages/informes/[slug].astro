@@ -1,0 +1,140 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import { humanize } from '../../lib/title';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('informes');
+  return entries.map((entry) => ({
+    params: { slug: entry.slug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const title = entry.data.title ?? humanize(entry.slug);
+const { Content } = await entry.render();
+
+const dateLabel = entry.data.date
+  ? entry.data.date.toLocaleDateString('es', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  : null;
+---
+
+<Layout title={`${title} · informes`}>
+  <header class="topbar">
+    <a class="back" href="/">← Übersicht</a>
+    <label class="written">
+      <input class="mark" type="checkbox" data-slug={entry.slug} />
+      <span>geschrieben</span>
+    </label>
+  </header>
+
+  <main>
+    <article>
+      <h1 class="title">{title}</h1>
+      {dateLabel && <p class="date">{dateLabel}</p>}
+      <div class="prose">
+        <Content />
+      </div>
+    </article>
+  </main>
+</Layout>
+
+<script>
+  import { getMarks, setMark } from '../../lib/marks';
+
+  const box = document.querySelector<HTMLInputElement>('.mark');
+  const slug = box?.dataset.slug;
+
+  if (box && slug) {
+    getMarks().then((marks) => {
+      box.checked = marks[slug] === true;
+    });
+
+    box.addEventListener('change', async () => {
+      const want = box.checked;
+      const ok = await setMark(slug, want);
+      if (!ok) box.checked = !want; // revert on failure
+    });
+  }
+</script>
+
+<style>
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem clamp(1rem, 4vw, 2rem);
+    background: rgba(13, 13, 16, 0.7);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .back {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    transition: color 0.15s ease;
+  }
+
+  .back:hover {
+    color: var(--text);
+  }
+
+  .written {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .written:hover {
+    color: var(--text);
+  }
+
+  .mark {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--ok);
+    cursor: pointer;
+  }
+
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2rem) 4rem;
+  }
+
+  .title {
+    margin: 0 0 0.3rem;
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .date {
+    margin: 0 0 2rem;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+
+  .prose {
+    font-size: 1.08rem;
+    line-height: 1.8;
+    color: var(--text);
+  }
+
+  .prose :global(p) {
+    margin: 0 0 1.2rem;
+  }
+</style>

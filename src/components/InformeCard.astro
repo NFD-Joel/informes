@@ -1,0 +1,94 @@
+---
+interface Props {
+  slug: string;
+  title: string;
+  snippet: string;
+}
+
+const { slug, title, snippet } = Astro.props;
+---
+
+<article class="card" data-slug={slug}>
+  <a class="link" href={`/informes/${slug}/`}>
+    <h2 class="title">{title}</h2>
+    <p class="snippet">{snippet}</p>
+  </a>
+  <label class="written">
+    <input class="mark" type="checkbox" data-slug={slug} />
+    <span>geschrieben</span>
+  </label>
+</article>
+
+<style>
+  .card {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition:
+      transform 0.15s ease,
+      border-color 0.15s ease,
+      background 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  .card:hover,
+  .card:focus-within {
+    transform: translateY(-3px);
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Marked-as-written cards get a subtle green accent. */
+  .card.is-written {
+    border-color: rgba(74, 222, 128, 0.4);
+  }
+
+  .link {
+    display: block;
+    padding: 1.1rem 1.2rem 0.9rem;
+  }
+
+  .title {
+    margin: 0 0 0.4rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+
+  .snippet {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .written {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 1.2rem;
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .written:hover {
+    color: var(--text);
+  }
+
+  .mark {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--ok);
+    cursor: pointer;
+  }
+</style>
