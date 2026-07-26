@@ -34,8 +34,16 @@ const informes = entries.map((entry) => ({
   </header>
 
   <main>
-    <section class="grid">
-      {informes.map((i) => <InformeCard slug={i.slug} title={i.title} snippet={i.snippet} />)}
+    <section class="group" id="group-pending">
+      <h2 class="group-title">Pending</h2>
+      <div class="grid" id="grid-pending">
+        {informes.map((i) => <InformeCard slug={i.slug} title={i.title} snippet={i.snippet} />)}
+      </div>
+    </section>
+
+    <section class="group" id="group-written" hidden>
+      <h2 class="group-title">Written</h2>
+      <div class="grid" id="grid-written"></div>
     </section>
 
     <p class="empty" id="empty" hidden>No reports found.</p>
@@ -57,11 +65,35 @@ const informes = entries.map((entry) => ({
   const cards = Array.from(document.querySelectorAll<HTMLElement>('.card'));
   const doneEl = document.getElementById('done');
 
+  const groupPending = document.getElementById('group-pending');
+  const groupWritten = document.getElementById('group-written');
+  const gridPending = document.getElementById('grid-pending');
+  const gridWritten = document.getElementById('grid-written');
+
   function refreshDone() {
     if (doneEl) {
       doneEl.textContent = String(
         cards.filter((c) => c.classList.contains('is-written')).length,
       );
+    }
+  }
+
+  // Move a card into the section matching its written state.
+  function place(card: HTMLElement, written: boolean) {
+    (written ? gridWritten : gridPending)?.appendChild(card);
+  }
+
+  // Hide a section header when its grid has no visible cards.
+  function refreshGroups() {
+    for (const [group, grid] of [
+      [groupPending, gridPending],
+      [groupWritten, gridWritten],
+    ] as const) {
+      if (!group || !grid) continue;
+      const hasVisible = Array.from(grid.querySelectorAll<HTMLElement>('.card')).some(
+        (c) => !c.hidden,
+      );
+      group.hidden = !hasVisible;
     }
   }
 
@@ -77,9 +109,12 @@ const informes = entries.map((entry) => ({
   getMarks().then((marks) => {
     for (const card of cards) {
       const slug = card.dataset.slug!;
-      applyMark(slug, marks[slug] === true);
+      const written = marks[slug] === true;
+      applyMark(slug, written);
+      place(card, written);
     }
     refreshDone();
+    refreshGroups();
   });
 
   // --- Toggle handler ---
@@ -91,6 +126,8 @@ const informes = entries.map((entry) => ({
       const ok = await setMark(slug, want);
       if (ok) {
         card.classList.toggle('is-written', want);
+        place(card, want);
+        refreshGroups();
       } else {
         box.checked = !want; // revert on failure
       }
@@ -113,6 +150,7 @@ const informes = entries.map((entry) => ({
     }
     if (count) count.textContent = `${visible} report${visible === 1 ? '' : 's'}`;
     if (empty) empty.hidden = visible !== 0;
+    refreshGroups();
   }
   search?.addEventListener('input', filter);
 </script>
@@ -183,6 +221,21 @@ const informes = entries.map((entry) => ({
     color: var(--text-dim);
     text-align: center;
     padding: 2rem 0;
+  }
+
+  .group {
+    margin-bottom: 2.5rem;
+  }
+
+  .group-title {
+    margin: 0 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   .grid {
